@@ -1,9 +1,8 @@
-import { redirect } from 'next/navigation'
-import { LoginForm } from '@/components/auth/login-form'
-
 export default function HomePage() {
-  // For now, redirect to login page
-  // In production, you might want to show a landing page
-  redirect('/auth/login')
+  return (
+    <div>
+      <h1>Home Page</h1>
+      <p>This is the main landing page.</p>
+    </div>
+  );
 }
-
