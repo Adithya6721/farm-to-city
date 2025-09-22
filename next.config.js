@@ -1,12 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
   images: {
-    domains: ['localhost'],
-  },
+    domains: ['images.unsplash.com'],
+  }
 }
 
 module.exports = nextConfig
-
