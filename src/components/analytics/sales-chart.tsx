@@ -57,6 +57,8 @@ export function SalesChart() {
           startDate.setMonth(now.getMonth() - 6)
       }
 
+      if (!user) return
+
       // Fetch sales data
       const { data: orders, error } = await supabase
         .from('orders')
@@ -255,4 +257,6 @@ export function SalesChart() {
     </div>
   )
 }
+
+
 

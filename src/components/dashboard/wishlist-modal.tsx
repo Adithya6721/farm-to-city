@@ -204,3 +204,5 @@ export function WishlistModal({ wishlist, onClose, onWishlistUpdate }: WishlistM
   )
 }
 
+
+

@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/auth/auth-provider'
 import { ChatMessage, User } from '@/types'
 import { getRelativeTime, getInitials } from '@/lib/utils'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface ChatWindowProps {
   isOpen: boolean
@@ -25,16 +26,21 @@ export function ChatWindow({ isOpen, onClose, otherUser, orderId }: ChatWindowPr
   const [newMessage, setNewMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const subscriptionRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
     if (isOpen && otherUser && user) {
       fetchMessages()
-      subscribeToMessages()
-    }
-
-    return () => {
-      if (isOpen) {
-        supabase.removeChannel('chat-messages')
+      const cleanup = subscribeToMessages()
+      
+      return () => {
+        if (cleanup) {
+          cleanup()
+        }
+        if (subscriptionRef.current) {
+          subscriptionRef.current.unsubscribe()
+          subscriptionRef.current = null
+        }
       }
     }
   }, [isOpen, otherUser, user])
@@ -70,11 +76,12 @@ export function ChatWindow({ isOpen, onClose, otherUser, orderId }: ChatWindowPr
     }
   }
 
-  const subscribeToMessages = () => {
+  const subscribeToMessages = (): (() => void) | undefined => {
     if (!otherUser || !user) return
 
+    const channelName = `chat-messages-${user.id}-${otherUser.id}`
     const subscription = supabase
-      .channel('chat-messages')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -90,8 +97,11 @@ export function ChatWindow({ isOpen, onClose, otherUser, orderId }: ChatWindowPr
       )
       .subscribe()
 
+    subscriptionRef.current = subscription
+
     return () => {
       subscription.unsubscribe()
+      subscriptionRef.current = null
     }
   }
 
@@ -226,4 +236,6 @@ export function ChatWindow({ isOpen, onClose, otherUser, orderId }: ChatWindowPr
     </div>
   )
 }
+
+
 

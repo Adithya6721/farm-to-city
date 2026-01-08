@@ -163,3 +163,5 @@ INSERT INTO auto_reorder_settings (shopkeeper_id, product_id, min_stock, reorder
 ('550e8400-e29b-41d4-a716-446655440008', (SELECT id FROM products WHERE name = 'Organic Tomatoes' LIMIT 1), 8, 15, 'weekly', true),
 ('550e8400-e29b-41d4-a716-446655440008', (SELECT id FROM products WHERE name = 'Fresh Coriander' LIMIT 1), 3, 5, 'daily', true);
 
+
+

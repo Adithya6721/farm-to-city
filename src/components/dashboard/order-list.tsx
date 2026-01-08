@@ -8,6 +8,18 @@ import { Check, X, Truck, MessageSquare } from 'lucide-react'
 import { Order } from '@/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
+import { handleSupabaseError } from '@/lib/error-handler'
+import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 interface OrderListProps {
   orders: Order[]
@@ -17,6 +29,7 @@ interface OrderListProps {
 
 export function OrderList({ orders, userRole, onOrderUpdate }: OrderListProps) {
   const [updatingOrders, setUpdatingOrders] = useState<Set<string>>(new Set())
+  const [confirmDialog, setConfirmDialog] = useState<{ orderId: string; status: string } | null>(null)
 
   const updateOrderStatus = async (orderId: string, status: string) => {
     setUpdatingOrders(prev => new Set(prev).add(orderId))
@@ -29,15 +42,29 @@ export function OrderList({ orders, userRole, onOrderUpdate }: OrderListProps) {
 
       if (error) throw error
 
+      toast.success(`Order ${status} successfully`)
       onOrderUpdate()
     } catch (error) {
-      console.error('Error updating order:', error)
+      handleSupabaseError(error, {
+        defaultMessage: 'Failed to update order status. Please try again.'
+      })
     } finally {
       setUpdatingOrders(prev => {
         const newSet = new Set(prev)
         newSet.delete(orderId)
         return newSet
       })
+    }
+  }
+
+  const handleStatusChange = (orderId: string, status: string) => {
+    setConfirmDialog({ orderId, status })
+  }
+
+  const confirmStatusChange = () => {
+    if (confirmDialog) {
+      updateOrderStatus(confirmDialog.orderId, confirmDialog.status)
+      setConfirmDialog(null)
     }
   }
 
@@ -155,7 +182,7 @@ export function OrderList({ orders, userRole, onOrderUpdate }: OrderListProps) {
                   <>
                     <Button
                       size="sm"
-                      onClick={() => updateOrderStatus(order.id, 'confirmed')}
+                      onClick={() => handleStatusChange(order.id, 'confirmed')}
                       disabled={updatingOrders.has(order.id)}
                       className="bg-green-600 hover:bg-green-700"
                     >
@@ -165,7 +192,7 @@ export function OrderList({ orders, userRole, onOrderUpdate }: OrderListProps) {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => updateOrderStatus(order.id, 'rejected')}
+                      onClick={() => handleStatusChange(order.id, 'rejected')}
                       disabled={updatingOrders.has(order.id)}
                     >
                       <X className="mr-1 h-3 w-3" />
@@ -177,7 +204,7 @@ export function OrderList({ orders, userRole, onOrderUpdate }: OrderListProps) {
                 {userRole === 'farmer' && order.status === 'confirmed' && (
                   <Button
                     size="sm"
-                    onClick={() => updateOrderStatus(order.id, 'delivered')}
+                    onClick={() => handleStatusChange(order.id, 'delivered')}
                     disabled={updatingOrders.has(order.id)}
                     className="bg-blue-600 hover:bg-blue-700"
                   >
@@ -195,7 +222,26 @@ export function OrderList({ orders, userRole, onOrderUpdate }: OrderListProps) {
           </CardContent>
         </Card>
       ))}
+
+      <AlertDialog open={!!confirmDialog} onOpenChange={(open) => !open && setConfirmDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Status Change</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to change this order status to {confirmDialog?.status}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmStatusChange}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
+
+
 

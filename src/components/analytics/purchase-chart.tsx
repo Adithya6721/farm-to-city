@@ -56,6 +56,8 @@ export function PurchaseChart() {
           startDate.setMonth(now.getMonth() - 6)
       }
 
+      if (!user) return
+
       // Fetch purchase data
       const { data: orders, error } = await supabase
         .from('orders')
@@ -250,4 +252,6 @@ export function PurchaseChart() {
     </div>
   )
 }
+
+
 

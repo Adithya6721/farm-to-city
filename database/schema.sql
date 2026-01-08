@@ -206,3 +206,5 @@ CREATE POLICY "Shopkeepers can manage their inventory" ON inventory FOR ALL USIN
 -- Auto-reorder settings policies
 CREATE POLICY "Shopkeepers can manage their auto-reorder settings" ON auto_reorder_settings FOR ALL USING (auth.uid() = shopkeeper_id);
 
+
+

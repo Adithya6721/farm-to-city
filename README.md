@@ -93,16 +93,21 @@ Farm2City is a comprehensive full-stack web application that connects farmers wi
    - Optionally, run the seed data from `database/seed.sql`
 
 4. **Environment Configuration**
+   
+   See `ENV_SETUP.md` for detailed instructions, or:
    ```bash
-   cp env.example .env.local
+   # Create .env.local file
+   cp ENV_SETUP.md .env.local
    ```
    
    Update `.env.local` with your Supabase credentials:
    ```env
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
-   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here (optional)
    ```
+   
+   **Important**: Never commit `.env.local` to version control!
 
 5. **Start the development server**
    ```bash
@@ -214,11 +219,46 @@ SUPABASE_SERVICE_ROLE_KEY=your_production_service_role_key
 NEXT_PUBLIC_APP_URL=https://your-domain.com
 ```
 
-## 🧪 Testing
+## 🧪 Testing & Verification
 
-Run the test suite:
+### Run Type Checking
 ```bash
-npm run test
+npm run type-check
+```
+
+### Run Linting
+```bash
+npm run lint
+```
+
+### Run Full Check (Type-check + Lint + Build)
+```bash
+npm run check
+```
+
+### Manual Testing Checklist
+
+After setup, verify the following:
+
+- [ ] App compiles without errors (`npm run build`)
+- [ ] App runs without errors (`npm run dev`)
+- [ ] All routes are accessible
+- [ ] Authentication flow works (signup/login/logout)
+- [ ] Protected routes redirect properly
+- [ ] All CRUD operations work
+- [ ] Real-time features work (chat, notifications)
+- [ ] Forms validate properly
+- [ ] Error handling works
+- [ ] Loading states appear correctly
+- [ ] No console errors in browser
+- [ ] TypeScript compilation has no errors
+- [ ] All imports resolve correctly
+
+### Health Check
+
+Visit `/api/health` to check system status:
+```bash
+curl http://localhost:3000/api/health
 ```
 
 ## 📈 Performance Optimization
@@ -279,4 +319,6 @@ For support, email support@farm2city.com or join our Slack channel.
 ---
 
 Made with ❤️ for the farming community
+
+
 

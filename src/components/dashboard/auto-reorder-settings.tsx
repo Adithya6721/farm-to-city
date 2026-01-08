@@ -18,6 +18,8 @@ interface AutoReorderSetting {
   reorder_quantity: number
   frequency: 'daily' | 'weekly' | 'monthly'
   enabled: boolean
+  created_at?: string
+  updated_at?: string
   product?: any
 }
 
@@ -316,9 +318,11 @@ export function AutoReorderSettings({ shopkeeperId, onSettingsUpdate }: AutoReor
                     />
                     <Label>Auto-reorder enabled</Label>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    Created {new Date(setting.created_at).toLocaleDateString()}
-                  </div>
+                  {setting.created_at && (
+                    <div className="text-xs text-gray-500">
+                      Created {new Date(setting.created_at).toLocaleDateString()}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -328,4 +332,6 @@ export function AutoReorderSettings({ shopkeeperId, onSettingsUpdate }: AutoReor
     </Card>
   )
 }
+
+
 

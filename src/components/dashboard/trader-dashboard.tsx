@@ -24,6 +24,9 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { ProductCard } from './product-card'
 import { OrderList } from './order-list'
 import { WishlistModal } from './wishlist-modal'
+import { handleSupabaseError } from '@/lib/error-handler'
+import { Loading } from '@/components/ui/loading'
+import { PRODUCT_CATEGORIES, PRICE_RANGES } from '@/lib/constants'
 
 export function TraderDashboard() {
   const { user } = useAuth()
@@ -40,6 +43,9 @@ export function TraderDashboard() {
     totalSpent: 0,
     wishlistCount: 0,
   })
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false)
+  const [isLoadingWishlist, setIsLoadingWishlist] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -50,85 +56,125 @@ export function TraderDashboard() {
   }, [user])
 
   const fetchProducts = async () => {
-    let query = supabase
-      .from('products')
-      .select(`
-        *,
-        farmer:users!products_farmer_id_fkey(*)
-      `)
-      .eq('availability', true)
-      .order('created_at', { ascending: false })
+    setIsLoadingProducts(true)
+    try {
+      let query = supabase
+        .from('products')
+        .select(`
+          *,
+          farmer:users!products_farmer_id_fkey(*)
+        `)
+        .eq('availability', true)
+        .order('created_at', { ascending: false })
 
-    if (searchTerm) {
-      query = query.or(`name.ilike.%${searchTerm}%, description.ilike.%${searchTerm}%`)
-    }
-
-    if (selectedCategory) {
-      query = query.eq('category', selectedCategory)
-    }
-
-    if (priceRange) {
-      const [min, max] = priceRange.split('-').map(Number)
-      if (max) {
-        query = query.gte('price', min).lte('price', max)
-      } else {
-        query = query.gte('price', min)
+      if (searchTerm) {
+        query = query.or(`name.ilike.%${searchTerm}%, description.ilike.%${searchTerm}%`)
       }
-    }
 
-    const { data, error } = await query
+      if (selectedCategory) {
+        query = query.eq('category', selectedCategory)
+      }
 
-    if (data) {
-      setProducts(data)
+      if (priceRange) {
+        const [min, max] = priceRange.split('-').map(Number)
+        if (max) {
+          query = query.gte('price', min).lte('price', max)
+        } else {
+          query = query.gte('price', min)
+        }
+      }
+
+      const { data, error } = await query
+
+      if (error) {
+        throw error
+      }
+
+      if (data) {
+        setProducts(data)
+      }
+    } catch (error) {
+      handleSupabaseError(error, {
+        defaultMessage: 'Failed to load products. Please try again.'
+      })
+    } finally {
+      setIsLoadingProducts(false)
     }
   }
 
   const fetchOrders = async () => {
     if (!user) return
 
-    const { data, error } = await supabase
-      .from('orders')
-      .select(`
-        *,
-        farmer:users!orders_farmer_id_fkey(*),
-        product:products(*)
-      `)
-      .eq('trader_id', user.id)
-      .order('created_at', { ascending: false })
+    setIsLoadingOrders(true)
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          farmer:users!orders_farmer_id_fkey(*),
+          product:products(*)
+        `)
+        .eq('trader_id', user.id)
+        .order('created_at', { ascending: false })
 
-    if (data) {
-      setOrders(data)
-      const pendingOrders = data.filter(order => order.status === 'pending').length
-      const totalSpent = data
-        .filter(order => order.status === 'delivered')
-        .reduce((sum, order) => sum + (order.total_amount || 0), 0)
+      if (error) {
+        throw error
+      }
 
-      setStats(prev => ({
-        ...prev,
-        totalOrders: data.length,
-        pendingOrders,
-        totalSpent,
-      }))
+      if (data) {
+        setOrders(data)
+        const pendingOrders = data.filter(order => order.status === 'pending').length
+        const totalSpent = data
+          .filter(order => order.status === 'delivered')
+          .reduce((sum, order) => sum + (order.total_amount || 0), 0)
+
+        setStats(prev => ({
+          ...prev,
+          totalOrders: data.length,
+          pendingOrders,
+          totalSpent,
+        }))
+      }
+    } catch (error) {
+      handleSupabaseError(error, {
+        defaultMessage: 'Failed to load orders. Please try again.'
+      })
+    } finally {
+      setIsLoadingOrders(false)
     }
   }
 
   const fetchWishlist = async () => {
     if (!user) return
 
-    const { data, error } = await supabase
-      .from('wishlists')
-      .select(`
-        *,
-        product:products(
+    setIsLoadingWishlist(true)
+    try {
+      const { data, error } = await supabase
+        .from('wishlists')
+        .select(`
           *,
-          farmer:users!products_farmer_id_fkey(*)
-        )
-      `)
-      .eq('user_id', user.id)
+          product:products(
+            *,
+            farmer:users!products_farmer_id_fkey(*)
+          )
+        `)
+        .eq('user_id', user.id)
 
-    if (data) {
-      setWishlist(data)
-      setStats(prev => ({ ...prev, wishlistCount: data.length }))
+      if (error) {
+        throw error
+      }
+
+      if (data) {
+        setWishlist(data)
+        setStats(prev => ({ ...prev, wishlistCount: data.length }))
+      }
+    } catch (error) {
+      handleSupabaseError(error, {
+        showToast: false, // Don't show toast for wishlist errors
+        logError: true
+      })
+    } finally {
+      setIsLoadingWishlist(false)
     }
   }
 
@@ -140,24 +186,8 @@ export function TraderDashboard() {
     fetchOrders()
   }
 
-  const categories = [
-    'Vegetables',
-    'Fruits',
-    'Grains',
-    'Pulses',
-    'Spices',
-    'Herbs',
-    'Dairy',
-    'Other'
-  ]
-
-  const priceRanges = [
-    { label: 'Under ₹50', value: '0-50' },
-    { label: '₹50 - ₹100', value: '50-100' },
-    { label: '₹100 - ₹200', value: '100-200' },
-    { label: '₹200 - ₹500', value: '200-500' },
-    { label: 'Above ₹500', value: '500-' },
-  ]
+  const categories = PRODUCT_CATEGORIES
+  const priceRanges = PRICE_RANGES
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -415,7 +445,9 @@ export function TraderDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {products.length === 0 ? (
+            {isLoadingProducts ? (
+              <Loading text="Loading products..." />
+            ) : products.length === 0 ? (
               <div className="text-center py-12">
                 <Package className="mx-auto h-12 w-12 text-gray-300 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
@@ -446,11 +478,15 @@ export function TraderDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <OrderList 
-              orders={orders} 
-              userRole="trader"
-              onOrderUpdate={handleOrderUpdate}
-            />
+            {isLoadingOrders ? (
+              <Loading text="Loading orders..." />
+            ) : (
+              <OrderList 
+                orders={orders} 
+                userRole="trader"
+                onOrderUpdate={handleOrderUpdate}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -466,4 +502,6 @@ export function TraderDashboard() {
     </div>
   )
 }
+
+
 

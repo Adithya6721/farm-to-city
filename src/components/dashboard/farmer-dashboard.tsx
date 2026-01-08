@@ -12,12 +12,17 @@ import { Product, Order } from '@/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { ProductForm } from './product-form'
 import { OrderList } from './order-list'
+import { handleSupabaseError } from '@/lib/error-handler'
+import { Loading } from '@/components/ui/loading'
+import { toast } from 'sonner'
 
 export function FarmerDashboard() {
   const { user } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [showProductForm, setShowProductForm] = useState(false)
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true)
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true)
   const [stats, setStats] = useState({
     totalProducts: 0,
     totalOrders: 0,
@@ -35,44 +40,70 @@ export function FarmerDashboard() {
   const fetchProducts = async () => {
     if (!user) return
 
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('farmer_id', user.id)
-      .order('created_at', { ascending: false })
+    setIsLoadingProducts(true)
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('farmer_id', user.id)
+        .order('created_at', { ascending: false })
 
-    if (data) {
-      setProducts(data)
-      setStats(prev => ({ ...prev, totalProducts: data.length }))
+      if (error) {
+        throw error
+      }
+
+      if (data) {
+        setProducts(data)
+        setStats(prev => ({ ...prev, totalProducts: data.length }))
+      }
+    } catch (error) {
+      handleSupabaseError(error, {
+        defaultMessage: 'Failed to load products. Please try again.'
+      })
+    } finally {
+      setIsLoadingProducts(false)
     }
   }
 
   const fetchOrders = async () => {
     if (!user) return
 
-    const { data, error } = await supabase
-      .from('orders')
-      .select(`
-        *,
-        trader:users!orders_trader_id_fkey(*),
-        product:products(*)
-      `)
-      .eq('farmer_id', user.id)
-      .order('created_at', { ascending: false })
+    setIsLoadingOrders(true)
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          trader:users!orders_trader_id_fkey(*),
+          product:products(*)
+        `)
+        .eq('farmer_id', user.id)
+        .order('created_at', { ascending: false })
 
-    if (data) {
-      setOrders(data)
-      const pendingOrders = data.filter(order => order.status === 'pending').length
-      const totalRevenue = data
-        .filter(order => order.status === 'delivered')
-        .reduce((sum, order) => sum + (order.total_amount || 0), 0)
+      if (error) {
+        throw error
+      }
 
-      setStats(prev => ({
-        ...prev,
-        totalOrders: data.length,
-        pendingOrders,
-        totalRevenue,
-      }))
+      if (data) {
+        setOrders(data)
+        const pendingOrders = data.filter(order => order.status === 'pending').length
+        const totalRevenue = data
+          .filter(order => order.status === 'delivered')
+          .reduce((sum, order) => sum + (order.total_amount || 0), 0)
+
+        setStats(prev => ({
+          ...prev,
+          totalOrders: data.length,
+          pendingOrders,
+          totalRevenue,
+        }))
+      }
+    } catch (error) {
+      handleSupabaseError(error, {
+        defaultMessage: 'Failed to load orders. Please try again.'
+      })
+    } finally {
+      setIsLoadingOrders(false)
     }
   }
 
@@ -226,8 +257,11 @@ export function FarmerDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {products.slice(0, 6).map((product) => (
+            {isLoadingProducts ? (
+              <Loading text="Loading products..." />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {products.slice(0, 6).map((product) => (
                 <div key={product.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="font-medium">{product.name}</h3>
@@ -261,7 +295,8 @@ export function FarmerDashboard() {
                   </Button>
                 </div>
               )}
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -274,11 +309,15 @@ export function FarmerDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <OrderList 
-              orders={orders} 
-              userRole="farmer"
-              onOrderUpdate={handleOrderUpdate}
-            />
+            {isLoadingOrders ? (
+              <Loading text="Loading orders..." />
+            ) : (
+              <OrderList 
+                orders={orders} 
+                userRole="farmer"
+                onOrderUpdate={handleOrderUpdate}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -294,4 +333,6 @@ export function FarmerDashboard() {
     </div>
   )
 }
+
+
 

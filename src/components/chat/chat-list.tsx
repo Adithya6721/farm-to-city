@@ -21,9 +21,15 @@ export function ChatList({ onSelectChat }: ChatListProps) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (user) {
-      fetchChatRooms()
-      subscribeToMessages()
+    if (!user) return
+
+    fetchChatRooms()
+    const unsubscribe = subscribeToMessages()
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe()
+      }
     }
   }, [user])
 
@@ -82,11 +88,11 @@ export function ChatList({ onSelectChat }: ChatListProps) {
     }
   }
 
-  const subscribeToMessages = () => {
+  const subscribeToMessages = (): (() => void) | undefined => {
     if (!user) return
 
     const subscription = supabase
-      .channel('chat-list-updates')
+      .channel(`chat-list-updates-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -239,4 +245,6 @@ export function ChatList({ onSelectChat }: ChatListProps) {
     </Card>
   )
 }
+
+
 

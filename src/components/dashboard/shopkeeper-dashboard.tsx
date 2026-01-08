@@ -32,6 +32,10 @@ import { WishlistModal } from './wishlist-modal'
 import { InventoryManager } from './inventory-manager'
 import { AutoReorderSettings } from './auto-reorder-settings'
 import { ReviewsManager } from './reviews-manager'
+import { handleSupabaseError } from '@/lib/error-handler'
+import { Loading } from '@/components/ui/loading'
+import { PRODUCT_CATEGORIES, PRICE_RANGES, LOW_STOCK_THRESHOLD } from '@/lib/constants'
+import { useDebounce } from '@/hooks/use-debounce'
 
 export function ShopkeeperDashboard() {
   const { user } = useAuth()
@@ -54,6 +58,12 @@ export function ShopkeeperDashboard() {
     averageRating: 0,
     totalReviews: 0,
   })
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false)
+  const [isLoadingInventory, setIsLoadingInventory] = useState(false)
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false)
+
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
   useEffect(() => {
     if (!user) return
@@ -65,37 +75,56 @@ export function ShopkeeperDashboard() {
     fetchReviews()
   }, [user])
 
+  useEffect(() => {
+    if (user && (debouncedSearchTerm !== searchTerm || selectedCategory || priceRange)) {
+      fetchProducts()
+    }
+  }, [debouncedSearchTerm, selectedCategory, priceRange, user])
+
   const fetchProducts = async () => {
-    let query = supabase
-      .from('products')
-      .select(`
-        *,
-        farmer:users!products_farmer_id_fkey(*)
-      `)
-      .eq('availability', true)
-      .order('created_at', { ascending: false })
+    setIsLoadingProducts(true)
+    try {
+      let query = supabase
+        .from('products')
+        .select(`
+          *,
+          farmer:users!products_farmer_id_fkey(*)
+        `)
+        .eq('availability', true)
+        .order('created_at', { ascending: false })
 
-    if (searchTerm) {
-      query = query.or(`name.ilike.%${searchTerm}%, description.ilike.%${searchTerm}%`)
-    }
-
-    if (selectedCategory) {
-      query = query.eq('category', selectedCategory)
-    }
-
-    if (priceRange) {
-      const [min, max] = priceRange.split('-').map(Number)
-      if (max) {
-        query = query.gte('price', min).lte('price', max)
-      } else {
-        query = query.gte('price', min)
+      if (debouncedSearchTerm) {
+        query = query.or(`name.ilike.%${debouncedSearchTerm}%, description.ilike.%${debouncedSearchTerm}%`)
       }
-    }
 
-    const { data, error } = await query
+      if (selectedCategory) {
+        query = query.eq('category', selectedCategory)
+      }
 
-    if (data) {
-      setProducts(data)
+      if (priceRange) {
+        const [min, max] = priceRange.split('-').map(Number)
+        if (max) {
+          query = query.gte('price', min).lte('price', max)
+        } else {
+          query = query.gte('price', min)
+        }
+      }
+
+      const { data, error } = await query
+
+      if (error) {
+        throw error
+      }
+
+      if (data) {
+        setProducts(data)
+      }
+    } catch (error) {
+      handleSupabaseError(error, {
+        defaultMessage: 'Failed to load products. Please try again.'
+      })
+    } finally {
+      setIsLoadingProducts(false)
     }
   }
 
@@ -151,43 +180,69 @@ export function ShopkeeperDashboard() {
   const fetchInventory = async () => {
     if (!user) return
 
-    const { data, error } = await supabase
-      .from('inventory')
-      .select(`
-        *,
-        product:products(*)
-      `)
-      .eq('shopkeeper_id', user.id)
+    setIsLoadingInventory(true)
+    try {
+      const { data, error } = await supabase
+        .from('inventory')
+        .select(`
+          *,
+          product:products(*)
+        `)
+        .eq('shopkeeper_id', user.id)
 
-    if (data) {
-      setInventory(data)
-      const lowStockItems = data.filter(item => item.current_stock < 10).length
-      setStats(prev => ({ ...prev, lowStockItems }))
+      if (error) {
+        throw error
+      }
+
+      if (data) {
+        setInventory(data)
+        const lowStockItems = data.filter(item => item.current_stock < LOW_STOCK_THRESHOLD).length
+        setStats(prev => ({ ...prev, lowStockItems }))
+      }
+    } catch (error) {
+      handleSupabaseError(error, {
+        defaultMessage: 'Failed to load inventory. Please try again.'
+      })
+    } finally {
+      setIsLoadingInventory(false)
     }
   }
 
   const fetchReviews = async () => {
     if (!user) return
 
-    const { data, error } = await supabase
-      .from('reviews')
-      .select(`
-        *,
-        farmer:users!reviews_farmer_id_fkey(*)
-      `)
-      .eq('shopkeeper_id', user.id)
+    setIsLoadingReviews(true)
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          farmer:users!reviews_farmer_id_fkey(*)
+        `)
+        .eq('shopkeeper_id', user.id)
 
-    if (data) {
-      setReviews(data)
-      const averageRating = data.length > 0 
-        ? data.reduce((sum, review) => sum + review.rating, 0) / data.length 
-        : 0
-      
-      setStats(prev => ({ 
-        ...prev, 
-        averageRating: Math.round(averageRating * 10) / 10,
-        totalReviews: data.length 
-      }))
+      if (error) {
+        throw error
+      }
+
+      if (data) {
+        setReviews(data)
+        const averageRating = data.length > 0 
+          ? data.reduce((sum, review) => sum + review.rating, 0) / data.length 
+          : 0
+        
+        setStats(prev => ({ 
+          ...prev, 
+          averageRating: Math.round(averageRating * 10) / 10,
+          totalReviews: data.length 
+        }))
+      }
+    } catch (error) {
+      handleSupabaseError(error, {
+        defaultMessage: 'Failed to load reviews. Please try again.'
+      })
+    } finally {
+      setIsLoadingReviews(false)
     }
   }
 
@@ -199,24 +254,8 @@ export function ShopkeeperDashboard() {
     fetchOrders()
   }
 
-  const categories = [
-    'Vegetables',
-    'Fruits',
-    'Grains',
-    'Pulses',
-    'Spices',
-    'Herbs',
-    'Dairy',
-    'Other'
-  ]
-
-  const priceRanges = [
-    { label: 'Under ₹50', value: '0-50' },
-    { label: '₹50 - ₹100', value: '50-100' },
-    { label: '₹100 - ₹200', value: '100-200' },
-    { label: '₹200 - ₹500', value: '200-500' },
-    { label: 'Above ₹500', value: '500-' },
-  ]
+  const categories = PRODUCT_CATEGORIES
+  const priceRanges = PRICE_RANGES
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -388,7 +427,9 @@ export function ShopkeeperDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {products.length === 0 ? (
+                {isLoadingProducts ? (
+                  <Loading text="Loading products..." />
+                ) : products.length === 0 ? (
                   <div className="text-center py-12">
                     <Package className="mx-auto h-12 w-12 text-gray-300 mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
@@ -585,7 +626,7 @@ export function ShopkeeperDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {inventory.filter(item => item.current_stock < 10).slice(0, 3).map((item) => (
+                {inventory.filter(item => item.current_stock < LOW_STOCK_THRESHOLD).slice(0, 3).map((item) => (
                   <div key={item.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
                     <div>
                       <p className="font-medium">{item.product?.name}</p>
@@ -596,7 +637,7 @@ export function ShopkeeperDashboard() {
                     <Badge variant="destructive">Low Stock</Badge>
                   </div>
                 ))}
-                {inventory.filter(item => item.current_stock < 10).length === 0 && (
+                {inventory.filter(item => item.current_stock < LOW_STOCK_THRESHOLD).length === 0 && (
                   <p className="text-center text-gray-500 py-4">All items are well stocked</p>
                 )}
               </div>
@@ -616,4 +657,6 @@ export function ShopkeeperDashboard() {
     </div>
   )
 }
+
+
 

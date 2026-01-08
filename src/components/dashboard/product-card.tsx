@@ -12,6 +12,8 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/auth/auth-provider'
 import { OrderModal } from './order-modal'
+import { handleSupabaseError } from '@/lib/error-handler'
+import { toast } from 'sonner'
 
 interface ProductCardProps {
   product: Product
@@ -27,31 +29,44 @@ export function ProductCard({ product, onOrderPlaced, onWishlistToggle, isInWish
   const [isAddingToWishlist, setIsAddingToWishlist] = useState(false)
 
   const toggleWishlist = async () => {
-    if (!user) return
+    if (!user) {
+      toast.error('Please sign in to add items to wishlist')
+      return
+    }
 
     setIsAddingToWishlist(true)
 
     try {
       if (isInWishlist) {
         // Remove from wishlist
-        await supabase
+        const { error } = await supabase
           .from('wishlists')
           .delete()
           .eq('user_id', user.id)
           .eq('product_id', product.id)
+
+        if (error) throw error
+
+        toast.success('Removed from wishlist')
       } else {
         // Add to wishlist
-        await supabase
+        const { error } = await supabase
           .from('wishlists')
           .insert({
             user_id: user.id,
             product_id: product.id,
           })
+
+        if (error) throw error
+
+        toast.success('Added to wishlist')
       }
 
       onWishlistToggle()
     } catch (error) {
-      console.error('Error updating wishlist:', error)
+      handleSupabaseError(error, {
+        defaultMessage: 'Failed to update wishlist. Please try again.'
+      })
     } finally {
       setIsAddingToWishlist(false)
     }
@@ -202,4 +217,6 @@ export function ProductCard({ product, onOrderPlaced, onWishlistToggle, isInWish
     </>
   )
 }
+
+
 
